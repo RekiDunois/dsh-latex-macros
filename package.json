@@ -44,5 +44,9 @@
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RekiDunois/dsh-latex-macros.git"
+  }
 }

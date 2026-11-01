@@ -76,6 +76,26 @@ npm test
 
 源码仓库不提交 `node_modules/`、生成的 `src/katex-style.js` 或 `lib/`。先运行上面的构建命令，再执行 `npm pack --ignore-scripts` 生成可安装的 `.tgz`。没有 prepare/install 执行脚本。
 
+## 发布到 npm
+
+`.github/workflows/publish.yml` 在 **GitHub Release 发布（published）** 时运行：安装锁定依赖、构建、测试、检查打包内容，再发布同一个 `.tgz`。普通 push、PR 和仅创建 tag 不会发布。使用现有 esbuild 构建，无需 webpack。
+
+### 一次性设置
+
+采用 [npm Trusted Publishing（OIDC）](https://docs.npmjs.com/trusted-publishers/)，不需要把长期 `NPM_TOKEN` 放进 GitHub。
+
+1. 若 npm 上还没有 `dsh-latex-macros`，先由包维护者在可信本地工作区登录 npm，确认包名可用并完成首次发布。先运行上面的构建和测试命令，再运行 `npm publish --access public --ignore-scripts`；npm 要求的账号验证/2FA 由维护者完成。首次发布会公开当前版本，不能把同一版本再次交给工作流发布。
+2. 在 npm 包的 Settings → Trusted publishing 添加 GitHub Actions：Organization or user 填 `RekiDunois`，Repository 填 `dsh-latex-macros`，Workflow filename 填 `publish.yml`（不带目录），Environment 留空；允许直接 `npm publish`。这是维护者需自行确认的发布授权，提交工作流本身不会替你建立授权。
+3. npm 当前要求新配置在 2 天内完成首次成功发布；准备好下一个版本时再配置。GitHub 无需添加 npm secret。
+
+### 后续版本
+
+更新 `package.json` 与 `package-lock.json` 的版本并提交，例如使用 `npm version patch --no-git-tag-version`。在包含工作流和版本更新的提交上创建 **与包版本完全一致的 `v<version>` Release**，然后发布 Release。例如初次手动发布 `0.1.0` 后，下次可发布 `v0.1.1`。
+
+稳定版本发布为 npm `latest`；包含预发布后缀的版本（如 `0.2.0-beta.1`）需勾选 GitHub Release 的 pre-release，发布为 `next`。tag/版本或预发布状态不一致会停止。工作流不会自动改版本、创建 Release 或覆盖已发布版本。
+
+首次自动运行前仍需完成 npm 授权；本仓库加入工作流并不表示 npm 发布已经验证成功。设置与触发方式亦可参考 [GitHub 发布 Node.js 包文档](https://docs.github.com/en/actions/tutorials/publish-packages/publish-nodejs-packages)。
+
 ## 核对依据
 
 - https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/client/ui-settings

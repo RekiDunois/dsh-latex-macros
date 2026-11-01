@@ -1,0 +1,69 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'RekiDunois/dsh-latex-macros'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - name: Ensure npm supports trusted publishing
+        run: npm install --global npm@11 --ignore-scripts
+      - name: Check release version
+        id: release
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const { release } = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          if (release.tag_name !== `v${pkg.version}`) {
+            throw new Error(`Release tag must be v${pkg.version}, got ${release.tag_name}`);
+          }
+          const prerelease = pkg.version.includes('-');
+          if (prerelease !== release.prerelease) {
+            throw new Error('Release pre-release checkbox must match the package version');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `dist-tag=${prerelease ? 'next' : 'latest'}\n`);
+          NODE
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm test
+      - name: Pack the built plugin
+        id: pack
+        shell: bash
+        run: |
+          npm pack --ignore-scripts --json > "$RUNNER_TEMP/npm-pack.json"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const [pack] = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-pack.json`, 'utf8'));
+          for (const path of ['lib/index.js', 'lib/client.js', 'cordis.patch.yml']) {
+            if (!pack.files.some(file => file.path === path)) throw new Error(`Missing package file: ${path}`);
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `file=${pack.filename}\n`);
+          NODE
+      - name: Publish using npm trusted publishing
+        env:
+          PACKAGE_FILE: ${{ steps.pack.outputs.file }}
+          DIST_TAG: ${{ steps.release.outputs.dist-tag }}
+        run: npm publish "$PACKAGE_FILE" --access public --tag "$DIST_TAG" --ignore-scripts
