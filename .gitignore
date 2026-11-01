@@ -1,0 +1,7 @@
+node_modules/
+lib/
+src/katex-style.js
+*.tgz
+validation/
+reference/
+.DS_Store

@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { JSDOM } from 'jsdom';
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import katex from 'katex';
+import { Config } from '../lib/index.js';
+test('published bundle loads through DSH module contract, settings render/save and dispose', async()=>{
+ const dom=new JSDOM('<!doctype html><html><head></head><body><main id="settings"></main><div data-chat-flow-kind="assistant-step" id="answer"></div></body></html>', {runScripts:'outside-only'});
+ const w=dom.window; global.window=w;global.document=w.document;global.IS_REACT_ACT_ENVIRONMENT=true;
+ w.document.querySelector('#answer').innerHTML=katex.renderToString('\\RR',{throwOnError:false});
+ let plugin,Page;
+ w.__ModuleLoader__={load({id,factory}){assert.equal(id,'dsh-latex-macros');plugin=factory(name=>{assert.equal(name,'react');return React;});}};
+ w.eval(await readFile(new URL('../lib/client.js',import.meta.url),'utf8'));
+ let snapshot={status:'ready',writable:true,revision:1,value:{enabled:true,macrosJson:'{}'}};
+ const subscribers=new Set(),writes=[];
+ const form={getSnapshot(){return snapshot;},subscribe(fn){subscribers.add(fn);return()=>subscribers.delete(fn);},async mutate(ops,revision){assert.equal(revision,snapshot.revision);writes.push(ops);snapshot={...snapshot,revision:snapshot.revision+1,value:{...snapshot.value,[ops[0].path[0]]:ops[0].value}};for(const fn of subscribers)fn();return true;},async set(key,value){return this.mutate([{op:'set',path:[key],value}],snapshot.revision);}};
+ const cleanups=[];
+ plugin.apply({configForms:{get(id){assert.equal(id,'latex-macros');return form;}},effect(fn){const stop=fn();if(stop)cleanups.push(stop);},slots:{inject(name,fn){assert.equal(name,'settings.section');return fn();},register(options,component){assert.equal(options.id,'latex-macros');Page=component;return()=>{};}}});
+ const root=createRoot(w.document.querySelector('#settings'));
+ await act(async()=>root.render(React.createElement(Page)));
+ assert.match(w.document.querySelector('h2').textContent,/LaTeX/);
+ // Simulate native form persistence notification, including the actual instance methods.
+ await act(async()=>form.set('macrosJson','{"\\\\RR":"\\\\mathbb{R}"}'));
+ assert.equal(w.document.querySelector('textarea').value,'{"\\\\RR":"\\\\mathbb{R}"}');
+ assert.ok(w.document.querySelector('[data-dsh-latex-macros-output]'));
+ await act(async()=>w.document.querySelector('button').click());
+ assert.equal(writes.length,2);
+ assert.match(w.document.querySelector('[role="status"]').textContent,/已保存/);
+ await act(async()=>root.unmount());
+ for(const stop of cleanups.reverse())stop();
+ assert.equal(w.document.querySelector('[data-dsh-latex-macros-output]'),null);
+ assert.equal(w.document.querySelector('[data-dsh-latex-macros-hidden]'),null);
+ assert.equal(subscribers.size,0); assert.equal(w.document.head.querySelectorAll('style').length,0);
+ dom.window.close();delete global.window;delete global.document;delete global.IS_REACT_ACT_ENVIRONMENT;
+});
+test('host schema exposes only enabled and macrosJson as live settings',()=>{
+ const config=Config({}); assert.equal(config.enabled.get(),true); assert.equal(config.macrosJson.get(),'{}');
+});
