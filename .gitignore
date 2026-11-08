@@ -1,5 +1,8 @@
 node_modules/
-lib/
+# NOTE: lib/ is intentionally tracked. Shipping the built output means a
+# `dsh plugin add github:...` install needs no install-time script: pnpm ≥10
+# blocks those by default, and a missing build leaves no lib/index.js to load.
+# Re-run `npm run build` and commit lib/ alongside any src change.
 src/katex-style.js
 *.tgz
 validation/

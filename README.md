@@ -12,13 +12,23 @@
 
 ## 安装
 
-交付的 `.tgz` 已含编译后的 `lib/`，无需在安装时运行构建脚本。
+仓库已提交编译后的 `lib/`，任何安装方式都不需要在安装时运行构建脚本。
 
-使用与你的 DSH 安装对应的 CLI（桌面版应使用桌面版自己的插件管理入口/CLI，不要用另装的 npm CLI 去接管桌面 profile）：
+直接填仓库地址即可，不需要额外的构建脚本批准：
+
+```sh
+dsh plugin --profile <你的-profile> add github:RekiDunois/dsh-latex-macros
+```
+
+也可以使用本地的 `.tgz`：
 
 ```sh
 dsh plugin --profile <你的-profile> add /绝对路径/dsh-latex-macros-0.1.0.tgz
 ```
+
+在 Web 插件的“添加插件”对话框里，包名、Git 地址、压缩包或本地绝对路径都可以。Git 地址需带协议或 `github:` 前缀（例如 `https://github.com/RekiDunois/dsh-latex-macros` 或 `github:RekiDunois/dsh-latex-macros`）；不带协议的 `RekiDunois/dsh-latex-macros` 和带 `/tree/main` 的页面地址会被拒。
+
+使用与你的 DSH 安装对应的 CLI（桌面版应使用桌面版自己的插件管理入口/CLI，不要用另装的 npm CLI 去接管桌面 profile）。
 
 安装后重启相应 DSH 界面/刷新客户端，使客户端插件载入。进入 **设置 → LaTeX 宏**。如果该入口不出现，请先确认启用的是同一个 profile，且内置 settings / slots 服务存在。
 
@@ -74,7 +84,15 @@ npm test
 
 `scripts/browser-smoke.mjs` 是可选的隔离浏览器 fixture，不是真实 DSH 测试；需要可启动的 Chromium，默认 `/usr/bin/chromium`。它使用真实 React/KaTeX 和编译产物，但设置服务/slot 为测试替身。
 
-源码仓库不提交 `node_modules/`、生成的 `src/katex-style.js` 或 `lib/`。先运行上面的构建命令，再执行 `npm pack --ignore-scripts` 生成可安装的 `.tgz`。没有 prepare/install 执行脚本。
+源码仓库不提交 `node_modules/` 或生成的 `src/katex-style.js`，但**提交 `lib/`**：`lib/` 是随仓库发布的构建产物，这样 `dsh plugin add github:...` 取到源码后也有可直接加载的入口。**改了 `src/` 必须重新运行 `npm run build` 并把 `lib/` 一起提交**，否则用户拿到的是旧产物。
+
+构建是确定性的（同样的 `src/` 与锁定依赖两次构建产出字节一致），所以重复提交不会产生无关 diff。检查是否忘记提交：
+
+```sh
+npm run build && git diff --exit-code lib/
+```
+
+发布 `.tgz` 时先运行上面的构建命令，再执行 `npm pack --ignore-scripts`。没有 prepare/install 执行脚本。
 
 ## 发布到 npm
 
