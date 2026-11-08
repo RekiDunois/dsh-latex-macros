@@ -19,3 +19,14 @@ test('lockfile root entry mirrors the unlocked engines', async()=>{
  assert.equal(lock.packages[''].engines.dsh, undefined);
  assert.equal(lock.packages[''].engines.node, '>=22.19.0');
 });
+
+test('built entries are committed beside src so a git install can load them', async()=>{
+ const pkg = await read('package.json');
+ // A `dsh plugin add github:...` install receives the repository, not a packed
+ // tarball, and pnpm blocks install-time build scripts by default. `main` must
+ // therefore point at a file that exists in the repository itself.
+ for (const entry of [pkg.main, pkg.exports['./client'], pkg.dsh.bundle.patch]) {
+  const text = await readFile(new URL(`../${entry}`, import.meta.url), 'utf8');
+  assert.notEqual(text.trim(), '', `${entry} must ship non-empty`);
+ }
+});
