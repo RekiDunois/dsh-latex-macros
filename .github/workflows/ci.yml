@@ -37,7 +37,10 @@ jobs:
         run: npm run build
       - name: Committed lib/ must match a fresh build
         run: |
-          if ! git diff --exit-code lib/; then
+          # --untracked-files=all also catches a build that emits a new file the
+          # commit forgot to add, which `git diff` alone would miss.
+          if [ -n "$(git status --porcelain --untracked-files=all -- lib/)" ]; then
+            git status --porcelain --untracked-files=all -- lib/
             echo "::error::lib/ is stale. Run 'npm run build' and commit lib/ with your src change."
             exit 1
           fi
